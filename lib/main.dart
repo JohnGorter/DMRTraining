@@ -2,12 +2,98 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:math';
 
+import 'package:demo/server.dart';
 import 'package:flutter/material.dart';
 
 main() {
-  runApp(MaterialApp(
-      home: Container(
-          color: Colors.white, child: Center(child: MyAnimationDemo()))));
+  runApp(MaterialApp(home: MyChart()));
+  // home: Container(
+  //     color: Colors.white, child: Center(child: MyAnimationDemo()))));
+}
+
+class MyDraggable extends StatefulWidget {
+  @override
+  State<MyDraggable> createState() => _MyDraggableState();
+}
+
+class _MyDraggableState extends State<MyDraggable> {
+  double marginleft = 10.0;
+  double marginTop = 200.0;
+  bool expand = true;
+  bool showPopup = false;
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(children: [
+      Container(color: Colors.white),
+      GestureDetector(
+          child: Container(color: Colors.green, height: 150, width: 150),
+          onTap: () async {
+            print("click");
+
+            //showPopup = true;
+            showPopup = await showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return Dialog(
+                      child: Column(
+                    children: [
+                      TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop(true);
+                          },
+                          child: Text("yes")),
+                      TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop(false);
+                          },
+                          child: Text("no")),
+                    ],
+                  ));
+                });
+
+            setState(() {});
+          }),
+      if (true)
+        IgnorePointer(
+            child: Opacity(
+                opacity: 0.8,
+                child: Container(color: Colors.blue, height: 100, width: 100))),
+      if (showPopup)
+        GestureDetector(
+            onPanUpdate: (details) {
+              setState(() {
+                marginleft = max(marginleft + details.delta.dx, 0);
+                marginTop = max(marginTop + details.delta.dy, 0);
+              });
+            },
+            child: Container(
+                margin: EdgeInsets.only(left: marginleft, top: marginTop),
+                alignment: Alignment.topLeft,
+                child: GestureDetector(
+                    onLongPress: () {
+                      showPopup = false;
+                      setState(() {});
+                    },
+                    onTap: () {
+                      setState(() {
+                        expand = !expand;
+                      });
+                    },
+                    child: AnimatedContainer(
+                        duration: Duration(milliseconds: 225),
+                        color: Colors.red,
+                        height: expand ? 200 : 50)),
+                height: 200,
+                width: 200)),
+    ]);
+  }
 }
 
 class MyAnimationDemo extends StatefulWidget {
@@ -19,7 +105,7 @@ class _MyAnimationDemoState extends State<MyAnimationDemo>
     with SingleTickerProviderStateMixin {
   late AnimationController controller;
   late Animation<double> animation;
-  double baseScale = 1 ;
+
   bool bigger = false;
   // late List<Color> colors = [
   //   Colors.red,
@@ -52,36 +138,7 @@ class _MyAnimationDemoState extends State<MyAnimationDemo>
   @override
   Widget build(BuildContext context) {
     // TODO: implement build
-    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      TextButton(
-        child: Text("animate me"),
-        onPressed: () {
-          if (bigger) controller.reverse();
-          else controller.forward();
-          bigger = !bigger;
-        },
-      ),
-      GestureDetector(
-        onScaleStart: (ScaleStartDetails scaleStartDetails) {
-          baseScale = 1;
-        },
-      onScaleUpdate: (ScaleUpdateDetails scaleUpdateDetails) {
-        // don't update the UI if the scale didn't change
-        if (scaleUpdateDetails.scale == 1.0) {
-          return;
-        }
-        setState(() {
-          baseScale = (1 * scaleUpdateDetails.scale).clamp(0.5, 5.0);
-        });
-      },
-        child:Container(
-        // duration: Duration(milliseconds: 500),
-        color: Colors.cyan,
-        width: 200 * baseScale,
-        height: 200 * baseScale,
-        child:
-      ))
-    ]);
+    return MyChart();
   }
 }
 
@@ -93,13 +150,15 @@ class MyChart extends StatefulWidget {
 }
 
 class _MyChartState extends State<MyChart> with SingleTickerProviderStateMixin {
-  List<int> points = [];
   bool expanded = true;
   late AnimationController controller;
   late Animation<double> sizeAnimation;
-
+  double baseScale = 200;
   @override
   void initState() {
+    SymbolServer.instance.addListener(() {
+      setState(() {});
+    });
     // TODO: implement initState
     super.initState();
     controller =
@@ -110,18 +169,6 @@ class _MyChartState extends State<MyChart> with SingleTickerProviderStateMixin {
       setState(() {});
     });
     controller..repeat(reverse: true);
-
-    points = [10, 20, 30, 35, 36, 37, 38, 39, 50];
-    Timer t = Timer.periodic(Duration(seconds: 1), (t) {
-      if (points.length > 50) points.removeAt(0);
-      int p = points.last;
-      int margin = math.Random().nextInt(25);
-      int positive = (math.Random().nextInt(10) % 2);
-      if (positive == 0) p = (p * (100 + margin) / 100).round();
-      if (positive == 1) p = (p * (100 - margin) / 100).round();
-      points.add(math.min(p, 100));
-      setState(() {});
-    });
   }
 
   @override
@@ -137,21 +184,29 @@ class _MyChartState extends State<MyChart> with SingleTickerProviderStateMixin {
             },
           )
         ], title: Text("whatever")),
-        body: Column(children: [
-          Container(
-              alignment: Alignment.center,
-              height: 50,
-              child: Text("Roasting",
-                  style: TextStyle(fontSize: (12 * sizeAnimation.value)))),
-          Container(
-              width: expanded ? MediaQuery.of(context).size.width : 200,
-              height: expanded
-                  ? MediaQuery.of(context).size.height -
-                      AppBar().preferredSize.height -
-                      100
-                  : 200,
-              child: CustomPaint(painter: MyPainter(points: points)))
-        ]));
+        body: Container(
+            alignment: Alignment.center,
+            child: GestureDetector(
+                onScaleStart: (ScaleStartDetails scaleStartDetails) {
+                  baseScale = 200;
+                },
+                onScaleUpdate: (ScaleUpdateDetails scaleUpdateDetails) {
+                  // don't update the UI if the scale didn't change
+                  if (scaleUpdateDetails.scale == 1.0) {
+                    return;
+                  }
+                  setState(() {
+                    baseScale = (200 * scaleUpdateDetails.scale)
+                        .clamp(200.0, MediaQuery.of(context).size.width * 2);
+                  });
+                },
+                child: Container(
+                    width: MediaQuery.of(context).size.width,
+                    height: MediaQuery.of(context).size.height -
+                        AppBar().preferredSize.height,
+                    child: CustomPaint(
+                        painter: MyPainter(
+                            points: SymbolServer.instance.airTemperatures))))));
   }
 }
 
@@ -172,7 +227,7 @@ class MyPainter extends CustomPainter {
       ..lineTo(size.width - margin, size.height - margin);
 
     Paint paint = Paint()
-      ..strokeWidth = 4
+      ..strokeWidth = size.width / 100
       ..color = Colors.red
       ..style = PaintingStyle.stroke;
 
